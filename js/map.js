@@ -23,10 +23,46 @@ class MapView {
         // Map Data (needed before fitSize)
         this.geoData = state.geoData;
 
+        // Clean degenerate micro-polygon rings that cause D3 rendering bugs.
+        // Bharatpur (and possibly others) have hundreds of near-zero-area rings
+        // (4-5 nearly identical points) that D3's geoPath renders as a massive
+        // bounding-box square, squishing the rest of India into a tiny dot.
+        // We use the Shoelace formula to compute approximate polygon area and
+        // drop anything with negligible area.
+        function ringArea(ring) {
+            let area = 0;
+            for (let i = 0, n = ring.length - 1; i < n; i++) {
+                area += ring[i][0] * ring[i + 1][1] - ring[i + 1][0] * ring[i][1];
+            }
+            return Math.abs(area) / 2;
+        }
+        this.geoData.features.forEach(feat => {
+            if (feat.geometry?.type === 'MultiPolygon') {
+                feat.geometry.coordinates = feat.geometry.coordinates.filter(polygon => {
+                    const ring = polygon[0];
+                    if (!ring || ring.length < 5) return false;  // Need at least 4 unique + closing
+                    // Area threshold: ~0.001 sq degrees ≈ a few sq km at India latitudes
+                    return ringArea(ring) > 0.001;
+                });
+            }
+        });
+
+        // Filter out features with no pc_name OR no remaining geometry
+        this.mapFeatures = this.geoData.features.filter(
+            d => d.properties?.pc_name && d.geometry?.coordinates?.length > 0
+        );
+
+        // Build a clean FeatureCollection for projection fitting
+        const fitCollection = { type: 'FeatureCollection', features: this.mapFeatures };
+
+        // fitExtent takes [[left, top], [right, bottom]] so India fills the
+        // SVG with 20px padding on every side — no clipping of northern states.
+        const pad = 20;
         this.projection = d3.geoMercator()
-            .center([82.8, 22.5])
-            .scale(this.height * 1.5)
-            .translate([this.width / 2, this.height / 2]);
+            .fitExtent(
+                [[pad, pad], [this.width - pad, this.height - pad]],
+                fitCollection
+            );
 
         this.path = d3.geoPath().projection(this.projection);
 
@@ -43,6 +79,8 @@ class MapView {
         this.svg.on("dblclick", () => {
             this.svg.transition().duration(500).call(this.zoom.transform, d3.zoomIdentity);
         });
+        this.svg.on("mouseleave", hideTooltip);
+        this.container.on("mouseleave", hideTooltip);
         
         // Cache for fast filtering: { '2024': { 'PC_NAME': {party: 'BJP', margin: '...', ...} } }
         this.electionData = {};
@@ -65,23 +103,19 @@ class MapView {
             this.electionData[yearStr][pcName] = d;
             this.electionDataNormalized[yearStr][normalizeConstituencyName(pcName)] = d;
         });
-
-        // Quick state boundary extraction (dissolving PCs by state is complex without topojson, 
-        // but we'll try to just draw the PCs and use CSS to make boundaries subtle)
     }
 
     drawMap() {
         const self = this;
 
-        // Draw constituencies, ignoring features without a pc_name (e.g. bounding boxes)
         this.g.selectAll(".constituency")
-            .data(this.geoData.features.filter(d => d.properties.pc_name))
+            .data(this.mapFeatures)
             .enter().append("path")
             .attr("class", "constituency")
             .attr("d", this.path)
             .attr("id", d => `pc-${d.properties.pc_name ? d.properties.pc_name.replace(/\s+/g, '-').toUpperCase() : ''}`)
             .on("mouseover", function(event, d) {
-                d3.select(this).style("stroke-width", "1.5px");
+                d3.select(this).style("stroke-width", "1px");
                 self.showMapTooltip(event, d);
             })
             .on("mousemove", moveTooltip)
@@ -130,6 +164,8 @@ class MapView {
     render(year, selectedState, selectedParty) {
         const yearStr = year.toString();
         const t = d3.transition().duration(500);
+        const marginMix = d3.scaleLinear().domain([0, 0.2]).range([0, 1]).clamp(true);
+        const neutral = "#3a3f47";
 
         this.g.selectAll(".constituency")
             .transition(t)
@@ -139,7 +175,10 @@ class MapView {
 
                 if (!elecData) return "#222"; // Missing data
 
-                return getPartyColor(elecData.Party);
+                const marginPct = elecData.Total_Votes_Const > 0
+                    ? elecData.Margin / elecData.Total_Votes_Const
+                    : 0;
+                return d3.interpolateRgb(neutral, getPartyColor(elecData.Party))(marginMix(marginPct));
             })
             .style("opacity", d => {
                 // Filter Logic
