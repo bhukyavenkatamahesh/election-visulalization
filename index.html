@@ -23,7 +23,7 @@
         <header class="dashboard-header">
             <div class="title-section">
                 <h1>Indian Electoral Patterns <span>(2004 - 2024)</span></h1>
-                <p>Exploring trends, swing constituencies & party dynamics across Lok Sabha elections</p>
+                <p>Exploring trends, swing constituencies &amp; party dynamics across Lok Sabha elections</p>
             </div>
             
             <div class="controls-section">
@@ -63,8 +63,8 @@
                 <div id="map-viz" class="viz-container">
                     <div class="map-zoom-controls" id="map-zoom-controls">
                         <button id="map-zoom-in"  class="map-zoom-btn" aria-label="Zoom in">+</button>
-                        <button id="map-zoom-out" class="map-zoom-btn" aria-label="Zoom out">−</button>
-                        <button id="map-zoom-reset" class="map-zoom-btn map-zoom-reset" aria-label="Reset zoom">⌂</button>
+                        <button id="map-zoom-out" class="map-zoom-btn" aria-label="Zoom out">&#x2212;</button>
+                        <button id="map-zoom-reset" class="map-zoom-btn map-zoom-reset" aria-label="Reset zoom">&#x2302;</button>
                     </div>
                 </div>
                 <div id="map-legend" class="legend-container"></div>
@@ -88,26 +88,31 @@
                 <div id="sankey-viz" class="viz-container"></div>
             </section>
 
-            <!-- View 4: Scatter Plot -->
+            <!-- View 4: Scatter + Participation (side by side) -->
             <section class="panel scatter-panel">
                 <div class="panel-header">
                     <h2>Candidate Landscape</h2>
                     <span class="subtitle">Declared assets, turnout coverage, and candidate representation where source data is available</span>
                 </div>
                 <div class="split-viz">
-                    <div>
+
+                    <!-- Left column: Affidavit scatter + its own legend -->
+                    <div class="split-col">
                         <h3>Affidavit Landscape</h3>
                         <div id="scatter-viz" class="viz-container"></div>
+                        <div class="legend-container scatter-legend">
+                            <span class="legend-item"><span class="dot win"></span> Winner</span>
+                            <span class="legend-item"><span class="dot loss"></span> Runner-up/Lost</span>
+                            <span class="legend-item"><span class="circle-size"></span> Radius = Criminal Cases</span>
+                        </div>
                     </div>
-                    <div>
-                        <h3>Participation & Representation</h3>
+
+                    <!-- Right column: Participation + gender (self-contained) -->
+                    <div class="split-col">
+                        <h3>Participation &amp; Representation</h3>
                         <div id="participation-viz" class="viz-container"></div>
                     </div>
-                </div>
-                <div class="legend-container scatter-legend">
-                    <span class="legend-item"><span class="dot win"></span> Winner</span>
-                    <span class="legend-item"><span class="dot loss"></span> Runner-up/Lost</span>
-                    <span class="legend-item"><span class="circle-size"></span> Radius = Criminal Cases</span>
+
                 </div>
             </section>
             
