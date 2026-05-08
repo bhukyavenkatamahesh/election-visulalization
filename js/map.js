@@ -23,10 +23,10 @@ class MapView {
         // Map Data (needed before fitSize)
         this.geoData = state.geoData;
 
-        // fitSize auto-picks scale & translate so all of India fits the panel
-        // — avoids Mercator over-stretch pushing Kashmir off the top.
         this.projection = d3.geoMercator()
-            .fitSize([this.width, this.height], this.geoData);
+            .center([82.8, 22.5])
+            .scale(this.height * 1.5)
+            .translate([this.width / 2, this.height / 2]);
 
         this.path = d3.geoPath().projection(this.projection);
 
@@ -73,9 +73,9 @@ class MapView {
     drawMap() {
         const self = this;
 
-        // Draw constituencies
+        // Draw constituencies, ignoring features without a pc_name (e.g. bounding boxes)
         this.g.selectAll(".constituency")
-            .data(this.geoData.features)
+            .data(this.geoData.features.filter(d => d.properties.pc_name))
             .enter().append("path")
             .attr("class", "constituency")
             .attr("d", this.path)
@@ -99,6 +99,7 @@ class MapView {
                     setFilter('state', clickedState);
                 }
             });
+
     }
 
     showMapTooltip(event, d) {
@@ -130,11 +131,6 @@ class MapView {
         const yearStr = year.toString();
         const t = d3.transition().duration(500);
 
-        // Margin-of-victory certainty encoding: narrow wins are washed toward
-        // neutral gray; safe seats keep full party color. Scale saturates at 20%.
-        const marginMix = d3.scaleLinear().domain([0, 0.2]).range([0, 1]).clamp(true);
-        const neutral = "#3a3f47";
-
         this.g.selectAll(".constituency")
             .transition(t)
             .style("fill", d => {
@@ -143,10 +139,7 @@ class MapView {
 
                 if (!elecData) return "#222"; // Missing data
 
-                const marginPct = elecData.Total_Votes_Const > 0
-                    ? elecData.Margin / elecData.Total_Votes_Const
-                    : 0;
-                return d3.interpolateRgb(neutral, getPartyColor(elecData.Party))(marginMix(marginPct));
+                return getPartyColor(elecData.Party);
             })
             .style("opacity", d => {
                 // Filter Logic

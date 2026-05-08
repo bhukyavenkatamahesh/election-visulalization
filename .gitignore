@@ -5,3 +5,5 @@ node_modules/
 node_modules/
 dist/
 .DS_Store
+.claude/
+Data/india-election-data-master/villages-to-ac/villages-to-ac.csv
