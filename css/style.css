@@ -354,6 +354,56 @@ svg {
     stroke-width: 1px;
 }
 
+/* Map zoom controls */
+.map-zoom-controls {
+    position: absolute;
+    bottom: 14px;
+    right: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    z-index: 10;
+}
+
+.map-zoom-btn {
+    width: 32px;
+    height: 32px;
+    background: rgba(22, 27, 34, 0.88);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    color: var(--text-primary);
+    font-size: 1.1rem;
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s, border-color 0.15s, transform 0.1s;
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    user-select: none;
+}
+
+.map-zoom-btn:hover {
+    background: rgba(88, 166, 255, 0.18);
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.map-zoom-btn:active {
+    transform: scale(0.92);
+    background: rgba(88, 166, 255, 0.28);
+}
+
+.map-zoom-reset {
+    font-size: 1rem;
+    margin-top: 2px;
+    border-top: 1px solid var(--border-color);
+}
+
+
 /* Bump Chart */
 .bump-line {
     fill: none;

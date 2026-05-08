@@ -60,7 +60,13 @@
                     <h2>Electoral Map</h2>
                     <span class="subtitle">Winning party by constituency &middot; faded = narrow margin</span>
                 </div>
-                <div id="map-viz" class="viz-container"></div>
+                <div id="map-viz" class="viz-container">
+                    <div class="map-zoom-controls" id="map-zoom-controls">
+                        <button id="map-zoom-in"  class="map-zoom-btn" aria-label="Zoom in">+</button>
+                        <button id="map-zoom-out" class="map-zoom-btn" aria-label="Zoom out">−</button>
+                        <button id="map-zoom-reset" class="map-zoom-btn map-zoom-reset" aria-label="Reset zoom">⌂</button>
+                    </div>
+                </div>
                 <div id="map-legend" class="legend-container"></div>
             </section>
 

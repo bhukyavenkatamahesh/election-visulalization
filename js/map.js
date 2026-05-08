@@ -74,6 +74,7 @@ class MapView {
                 this.g.attr("transform", event.transform);
             });
         this.svg.call(this.zoom);
+
         // Double-click on the map resets zoom.
         this.svg.on("dblclick.zoom", null);
         this.svg.on("dblclick", () => {
@@ -81,7 +82,19 @@ class MapView {
         });
         this.svg.on("mouseleave", hideTooltip);
         this.container.on("mouseleave", hideTooltip);
-        
+
+        // Wire zoom control buttons
+        const zoomStep = 1.6; // factor per button click
+        document.getElementById("map-zoom-in")?.addEventListener("click", () => {
+            this.svg.transition().duration(300).call(this.zoom.scaleBy, zoomStep);
+        });
+        document.getElementById("map-zoom-out")?.addEventListener("click", () => {
+            this.svg.transition().duration(300).call(this.zoom.scaleBy, 1 / zoomStep);
+        });
+        document.getElementById("map-zoom-reset")?.addEventListener("click", () => {
+            this.svg.transition().duration(400).call(this.zoom.transform, d3.zoomIdentity);
+        });
+
         // Cache for fast filtering: { '2024': { 'PC_NAME': {party: 'BJP', margin: '...', ...} } }
         this.electionData = {};
         this.electionDataNormalized = {};
