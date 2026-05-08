@@ -23,19 +23,59 @@ class ParticipationView {
         this.xAxis = this.svg.append("g").attr("transform", `translate(0,${this.height})`);
         this.yAxis = this.svg.append("g");
         this.chartGroup = this.svg.append("g");
-        this.genderGroup = this.svg.append("g").attr("transform", `translate(0,${Math.max(118, this.height - 70)})`);
+        // Leave enough space below turnout bars for gender section (bar + callout + legend)
+        this.genderGroup = this.svg.append("g").attr("transform", `translate(0,${Math.max(95, this.height - 95)})`);
     }
 
     render(year, selectedState) {
+        const yr = parseInt(year);
         const allParticipation = state.participationData || [];
         const allGender = state.candidateGenderData || [];
 
-        let turnoutRows = allParticipation.filter(d => d.YEAR === parseInt(year));
-        let genderRows = allGender.filter(d => d.YEAR === parseInt(year));
+        let turnoutRows = allParticipation.filter(d => d.YEAR === yr);
+        let genderRows  = allGender.filter(d => d.YEAR === yr);
+
+        // --- Fallback: derive turnout from turnout_by_constituency.csv for missing years (e.g. 2024) ---
+        if (turnoutRows.length === 0 && state.turnoutData && state.turnoutData.length > 0) {
+            const raw = state.turnoutData.filter(d => {
+                const rowYear = parseInt(d.YEAR || d.Year || 0);
+                return rowYear === yr && d.Turnout_Percent && parseFloat(d.Turnout_Percent) > 0;
+            });
+            if (raw.length > 0) {
+                const byState = d3.rollup(
+                    raw,
+                    vals => d3.mean(vals, v => parseFloat(v.Turnout_Percent)),
+                    v => (v.State || '').toUpperCase()
+                );
+                turnoutRows = Array.from(byState, ([State, Total_Turnout]) => ({
+                    YEAR: yr, State, Total_Turnout,
+                    Coverage_Note: `Derived from constituency-level turnout data (${yr}).`
+                }));
+            }
+        }
+
+        // --- Fallback: derive gender from elections_master.csv for missing years (e.g. 2024) ---
+        if (genderRows.length === 0 && state.candidatesData && state.candidatesData.length > 0) {
+            const masterYr = state.candidatesData.filter(d => d.YEAR === yr && d.Gender);
+            if (masterYr.length > 0) {
+                const grouped = d3.rollup(
+                    masterYr,
+                    vals => vals.length,
+                    v => (v.State || 'UNKNOWN').toUpperCase(),
+                    v => (v.Gender || 'UNKNOWN').toUpperCase()
+                );
+                genderRows = [];
+                grouped.forEach((genderMap, State) => {
+                    genderMap.forEach((Candidates, Gender) => {
+                        genderRows.push({ YEAR: yr, State, Gender, Candidates });
+                    });
+                });
+            }
+        }
 
         if (selectedState) {
             turnoutRows = turnoutRows.filter(d => d.State === selectedState);
-            genderRows = genderRows.filter(d => d.State === selectedState);
+            genderRows  = genderRows.filter(d => d.State === selectedState);
         }
 
         this.svg.selectAll(".no-data-msg").remove();
@@ -51,7 +91,7 @@ class ParticipationView {
                 .attr("y", this.height / 2)
                 .attr("text-anchor", "middle")
                 .style("fill", "#888")
-                .text("Participation and gender data are unavailable for this selection. Try 2014 or 2019.");
+                .text("Participation data unavailable for this selection.");
             return;
         }
 
@@ -156,35 +196,98 @@ class ParticipationView {
             ([Gender, Candidates]) => ({ Gender, Candidates, Share: Candidates / total * 100 })
         ).sort((a, b) => d3.descending(a.Candidates, b.Candidates));
 
-        let x = 0;
+        const color = d3.scaleOrdinal()
+            .domain(["MALE", "FEMALE", "OTHER", "TRANSGENDER"])
+            .range(["#58a6ff", "#f778ba", "#a371f7", "#3fb950"]);
+
+        // Title
         this.genderGroup.append("text")
             .attr("class", "gender-title")
             .attr("x", 0)
             .attr("y", -8)
             .text(`Candidate gender mix (${year})`);
 
-        const color = d3.scaleOrdinal()
-            .domain(["MALE", "FEMALE", "OTHER"])
-            .range(["#58a6ff", "#f778ba", "#a371f7"]);
+        // Stacked bar with smart labels
+        const barY = 8;
+        const barH = 24;
+        const calloutY = barY + barH + 12;
 
+        let x = 0;
         genders.forEach(d => {
-            const width = this.genderScale(d.Share);
+            const w = this.genderScale(d.Share);
+            const midX = x + w / 2;
+
+            // Segment rect
             this.genderGroup.append("rect")
                 .attr("class", "gender-segment")
                 .attr("x", x)
-                .attr("y", 8)
-                .attr("width", width)
-                .attr("height", 22)
-                .attr("fill", color(d.Gender));
-            if (width > 58) {
+                .attr("y", barY)
+                .attr("width", w)
+                .attr("height", barH)
+                .attr("fill", color(d.Gender))
+                .on("mouseover", (event) => {
+                    showTooltip(`
+                        <div class="tooltip-title">${d.Gender}</div>
+                        <div class="tooltip-row"><span>Candidates:</span> <span class="tooltip-val">${d.Candidates.toLocaleString()}</span></div>
+                        <div class="tooltip-row"><span>Share:</span> <span class="tooltip-val">${d.Share.toFixed(1)}%</span></div>
+                    `, event);
+                })
+                .on("mousemove", moveTooltip)
+                .on("mouseout", hideTooltip);
+
+            if (w >= 50) {
+                // Wide enough: show label inside the bar
                 this.genderGroup.append("text")
                     .attr("class", "gender-label")
-                    .attr("x", x + width / 2)
-                    .attr("y", 23)
+                    .attr("x", midX)
+                    .attr("y", barY + barH / 2 + 4)
                     .attr("text-anchor", "middle")
-                    .text(`${d.Gender} ${d.Share.toFixed(0)}%`);
+                    .style("font-size", "10px")
+                    .text(`${d.Share.toFixed(0)}%`);
+            } else {
+                // Narrow: tick line + colored pill label below the bar
+                this.genderGroup.append("line")
+                    .attr("x1", midX).attr("y1", barY + barH)
+                    .attr("x2", midX).attr("y2", calloutY)
+                    .attr("stroke", color(d.Gender))
+                    .attr("stroke-width", 1.5);
+
+                const labelText = `${d.Share.toFixed(1)}%`;
+                const pillW = labelText.length * 6 + 12;
+                const pillX = Math.min(Math.max(midX - pillW / 2, 0), this.width - pillW);
+
+                this.genderGroup.append("rect")
+                    .attr("x", pillX).attr("y", calloutY)
+                    .attr("width", pillW).attr("height", 16)
+                    .attr("rx", 3)
+                    .attr("fill", color(d.Gender));
+
+                this.genderGroup.append("text")
+                    .attr("x", pillX + pillW / 2).attr("y", calloutY + 11)
+                    .attr("text-anchor", "middle")
+                    .style("font-size", "9px")
+                    .style("fill", "#0d1117")
+                    .style("font-weight", "700")
+                    .text(labelText);
             }
-            x += width;
+
+            x += w;
+        });
+
+        // Always-visible legend row below bar + callouts
+        const legendY = calloutY + 24;
+        const itemSpacing = Math.min(this.width / genders.length, 150);
+        genders.forEach((d, i) => {
+            const g = this.genderGroup.append("g")
+                .attr("transform", `translate(${i * itemSpacing}, ${legendY})`);
+            g.append("rect")
+                .attr("width", 10).attr("height", 10).attr("rx", 2)
+                .attr("fill", color(d.Gender));
+            g.append("text")
+                .attr("x", 14).attr("y", 9)
+                .style("font-size", "10px")
+                .style("fill", "var(--text-secondary)")
+                .text(`${d.Gender}: ${d.Share.toFixed(1)}% (${d.Candidates.toLocaleString()})`);
         });
     }
 }

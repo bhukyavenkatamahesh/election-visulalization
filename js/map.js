@@ -85,6 +85,8 @@ class MapView {
         // Cache for fast filtering: { '2024': { 'PC_NAME': {party: 'BJP', margin: '...', ...} } }
         this.electionData = {};
         this.electionDataNormalized = {};
+        // Turnout cache: { '2019': { NORMALIZED_PC_NAME: {Turnout_Percent, Total_Electors, Votes_Polled} } }
+        this.turnoutCache = {};
         this.initDataCache();
 
         // Draw Base Map
@@ -102,6 +104,16 @@ class MapView {
             const pcName = d.Constituency ? d.Constituency.toUpperCase() : "";
             this.electionData[yearStr][pcName] = d;
             this.electionDataNormalized[yearStr][normalizeConstituencyName(pcName)] = d;
+        });
+
+        // Build turnout cache from the new turnout_by_constituency.csv
+        // YEAR → normalized constituency name → turnout row
+        (state.turnoutData || []).forEach(d => {
+            const yearStr = (d.YEAR || d.Year || '').toString();
+            if (!yearStr || yearStr === 'NaN') return;
+            if (!this.turnoutCache[yearStr]) this.turnoutCache[yearStr] = {};
+            const key = normalizeConstituencyName(d.Constituency || '');
+            if (key) this.turnoutCache[yearStr][key] = d;
         });
     }
 
@@ -142,6 +154,7 @@ class MapView {
         const yearStr = state.years[state.yearIdx].toString();
         
         const elecData = this.getElectionData(yearStr, pcPropName);
+        const turnoutRow = this.turnoutCache[yearStr]?.[normalizeConstituencyName(pcPropName)];
         
         let html = `<div class="tooltip-title">${pcPropName} (${stPropName}) - ${yearStr}</div>`;
         
@@ -155,7 +168,26 @@ class MapView {
                 <div class="tooltip-row"><span>Margin:</span> <span class="tooltip-val">${elecData.Margin.toLocaleString()} votes (${marginPct}%)</span></div>
             `;
         } else {
-            html += `<div class="tooltip-row"><em>No data available</em></div>`;
+            html += `<div class="tooltip-row"><em>No election data available</em></div>`;
+        }
+
+        // Add turnout data when available
+        if (turnoutRow) {
+            const turnoutPct = turnoutRow.Turnout_Percent
+                ? parseFloat(turnoutRow.Turnout_Percent).toFixed(1) + '%'
+                : '—';
+            const electors = turnoutRow.Total_Electors
+                ? parseInt(turnoutRow.Total_Electors).toLocaleString()
+                : '—';
+            const voted = turnoutRow.Votes_Polled_Including_NOTA
+                ? parseInt(turnoutRow.Votes_Polled_Including_NOTA).toLocaleString()
+                : '—';
+            html += `
+                <div class="tooltip-divider"></div>
+                <div class="tooltip-row"><span>Turnout:</span> <span class="tooltip-val" style="color:#64d2ff">${turnoutPct}</span></div>
+                <div class="tooltip-row"><span>Electors:</span> <span class="tooltip-val">${electors}</span></div>
+                <div class="tooltip-row"><span>Votes Polled:</span> <span class="tooltip-val">${voted}</span></div>
+            `;
         }
         
         showTooltip(html, event);

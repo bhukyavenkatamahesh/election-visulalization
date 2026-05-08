@@ -282,6 +282,10 @@ input[type=range]::-webkit-slider-runnable-track {
 .tooltip-val {
     font-weight: 600;
 }
+.tooltip-divider {
+    border-top: 1px solid var(--border-color);
+    margin: 0.35rem 0;
+}
 
 /* SVG Chart Elements */
 svg {

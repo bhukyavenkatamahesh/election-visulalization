@@ -11,12 +11,14 @@ const state = {
     selectedParty: null, // "All"
     
     // Datasets
-    candidatesData: [],  // Master results
-    winnersData: [],     // Winner map data
-    partyRanks: [],      // Bump chart data
-    geoData: null,       // TopoJSON/GeoJSON
+    candidatesData: [],       // Master results
+    winnersData: [],          // Winner map data
+    partyRanks: [],           // Bump chart data
+    geoData: null,            // TopoJSON/GeoJSON
     participationData: [],
-    candidateGenderData: []
+    candidateGenderData: [],
+    mynetaData: [],           // Full 2019 candidate affidavit data (7,472 records)
+    turnoutData: [],          // Constituency-level turnout 2004-2024
 };
 
 // Global Party Color Mapping
@@ -68,7 +70,7 @@ let mapView, bumpView, scatterView, sankeyView, participationView;
 document.addEventListener('DOMContentLoaded', async () => {
     console.log("Loading datasets...");
     try {
-        // Load datasets concurrently
+        // Load core datasets concurrently (required — any failure is fatal)
         const [masterCSV, winnersCSV, ranksCSV, topoData, participationCSV, genderCSV] = await Promise.all([
             d3.csv('public/data/elections_master.csv', d3.autoType),
             d3.csv('public/data/winners_map.csv', d3.autoType),
@@ -78,12 +80,23 @@ document.addEventListener('DOMContentLoaded', async () => {
             d3.csv('public/data/candidate_gender_summary.csv', d3.autoType)
         ]);
 
+        // Load enrichment datasets gracefully (optional — degrade silently if unavailable)
+        const [mynetaCSV, turnoutCSV] = await Promise.all([
+            d3.csv('public/data/candidates_2019_myneta_full.csv', d3.autoType).catch(() => []),
+            d3.csv('public/data/turnout_by_constituency.csv', d3.autoType).catch(() => [])
+        ]);
+
         state.candidatesData = masterCSV;
         state.winnersData = winnersCSV;
         state.partyRanks = ranksCSV;
         state.geoData = topoData;
         state.participationData = participationCSV;
         state.candidateGenderData = genderCSV;
+        state.mynetaData  = Array.isArray(mynetaCSV)  ? mynetaCSV  : [];
+        state.turnoutData = Array.isArray(turnoutCSV) ? turnoutCSV : [];
+
+        console.log(`Data loaded: ${state.mynetaData.length} myneta rows, ${state.turnoutData.length} turnout rows`);
+
 
         console.log("Data loaded successfully!");
         document.getElementById('app-status').classList.add('hidden');
